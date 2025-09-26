@@ -14,46 +14,67 @@ class KeepActiveApp:
 
         self.is_running = False
         self.worker_thread = None
+        self.window_vars = {}
 
-        # --- UI Elements ---
-        self.main_frame = ttk.Frame(self.root, padding="10")
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Window selection
-        ttk.Label(self.main_frame, text="1. Pilih Jendela Aplikasi (tahan Ctrl/Shift untuk memilih lebih dari satu):").pack(anchor="w")
-        list_frame = ttk.Frame(self.main_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        self.window_listbox = tk.Listbox(list_frame, selectmode=tk.EXTENDED, exportselection=False, height=5)
-        self.window_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.window_listbox.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.window_listbox.config(yscrollcommand=scrollbar.set)
-
-
-        self.refresh_button = ttk.Button(self.main_frame, text="Segarkan Daftar", command=self.populate_window_list)
-        self.refresh_button.pack(fill=tk.X, pady=2)
-
-        # Interval setting
-        ttk.Label(self.main_frame, text="2. Interval (detik):").pack(anchor="w", pady=(10, 0))
-        self.interval_spinbox = ttk.Spinbox(self.main_frame, from_=1, to=300, increment=1)
-        self.interval_spinbox.set("10")
-        self.interval_spinbox.pack(fill=tk.X)
-
-        # Controls
-        self.start_button = ttk.Button(self.main_frame, text="Mulai", command=self.start_keeping_active)
-        self.start_button.pack(side=tk.LEFT, expand=True, fill=tk.X, pady=(10, 0), padx=(0, 5))
-
-        self.stop_button = ttk.Button(self.main_frame, text="Berhenti", command=self.stop_keeping_active, state="disabled")
-        self.stop_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, pady=(10, 0), padx=(5, 0))
-
-        # Status bar
+        # --- Create UI Elements ---
+        # Status bar (created first, packed last at the bottom of the root)
         self.status_var = tk.StringVar()
         self.status_var.set("Status: Idle")
         self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, padding="5")
+
+        # Main frame that holds everything else
+        self.main_frame = ttk.Frame(self.root, padding="10")
+
+        # --- Bottom controls ---
+        controls_frame = ttk.Frame(self.main_frame)
+        
+        # Buttons frame
+        buttons_frame = ttk.Frame(controls_frame)
+        self.start_button = ttk.Button(buttons_frame, text="Mulai", command=self.start_keeping_active)
+        self.stop_button = ttk.Button(buttons_frame, text="Berhenti", command=self.stop_keeping_active, state="disabled")
+        self.start_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+        self.stop_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
+
+        # Interval setting
+        self.interval_spinbox = ttk.Spinbox(controls_frame, from_=1, to=300, increment=1)
+        self.interval_spinbox.set("10")
+        ttk.Label(controls_frame, text="2. Interval (detik):").pack(anchor="w")
+        self.interval_spinbox.pack(fill=tk.X, pady=(0, 5))
+        buttons_frame.pack(fill=tk.X)
+
+        # Refresh button
+        self.refresh_button = ttk.Button(self.main_frame, text="Segarkan Daftar", command=self.populate_window_list)
+
+        # --- Scrollable Checkbox Frame (middle, expanding part) ---
+        canvas_frame = ttk.Frame(self.main_frame)
+        canvas = tk.Canvas(canvas_frame)
+        scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
+        self.scrollable_frame = ttk.Frame(canvas)
+        self.scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Top label
+        self.top_label = ttk.Label(self.main_frame, text="1. Pilih Jendela Aplikasi:")
+
+        # --- Layout UI Elements (in correct order) ---
+        # 1. Pack status bar to the bottom of the ROOT window.
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # 2. Pack main frame to fill the rest of the ROOT window.
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 3. Pack controls from the BOTTOM of the main_frame UPWARDS.
+        controls_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5,0))
+        self.refresh_button.pack(side=tk.BOTTOM, fill=tk.X, pady=2)
+
+        # 4. Pack the label to the TOP of the main_frame.
+        self.top_label.pack(side=tk.TOP, anchor="w")
+
+        # 5. Pack the scrollable frame to fill the remaining space.
+        canvas_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
 
         self.populate_window_list()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -62,21 +83,27 @@ class KeepActiveApp:
         self.status_var.set("Status: Menyegarkan daftar jendela...")
         self.root.update_idletasks()
         try:
-            self.window_listbox.delete(0, tk.END)
+            # Clear old widgets
+            for widget in self.scrollable_frame.winfo_children():
+                widget.destroy()
+            self.window_vars.clear()
+
             windows = [win for win in pygetwindow.getAllTitles() if win]
-            for window in windows:
-                self.window_listbox.insert(tk.END, window)
+            for title in windows:
+                var = tk.BooleanVar()
+                checkbox = ttk.Checkbutton(self.scrollable_frame, text=title, variable=var)
+                checkbox.pack(anchor="w", fill="x", padx=5)
+                self.window_vars[title] = var
             self.status_var.set("Status: Idle")
         except Exception as e:
             self.status_var.set(f"Error: {e}")
 
     def start_keeping_active(self):
-        selected_indices = self.window_listbox.curselection()
-        if not selected_indices:
+        target_titles = [title for title, var in self.window_vars.items() if var.get()]
+        
+        if not target_titles:
             messagebox.showwarning("Peringatan", "Silakan pilih satu atau lebih jendela aplikasi.")
             return
-        
-        target_titles = [self.window_listbox.get(i) for i in selected_indices]
 
         try:
             interval = int(self.interval_spinbox.get())
@@ -88,7 +115,9 @@ class KeepActiveApp:
         self.start_button.config(state="disabled")
         self.stop_button.config(state="normal")
         self.refresh_button.config(state="disabled")
-        self.window_listbox.config(state="disabled")
+        
+        for child in self.scrollable_frame.winfo_children():
+            child.config(state="disabled")
 
         self.status_var.set(f"Aktif: Menjaga {len(target_titles)} jendela...")
 
@@ -100,7 +129,10 @@ class KeepActiveApp:
         self.start_button.config(state="normal")
         self.stop_button.config(state="disabled")
         self.refresh_button.config(state="normal")
-        self.window_listbox.config(state="normal")
+
+        for child in self.scrollable_frame.winfo_children():
+            child.config(state="normal")
+            
         self.status_var.set("Status: Dihentikan")
 
     def keep_alive_worker(self, target_titles, interval):
