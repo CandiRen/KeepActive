@@ -25,12 +25,6 @@ Jika Anda ingin menjalankan atau mengembangkan aplikasi ini dari kode sumbernya,
     pip install -r requirements.txt
     ```
 
-## Menjalankan dari Kode Sumber
-Setelah dependensi terinstal, Anda dapat menjalankan aplikasi dengan perintah:
-```bash
-python app_builder.py
-```
-
 ## Membangun Aplikasi (Build)
 Proyek ini menggunakan `PyInstaller` untuk membuat file `.exe`. Jika Anda ingin membangun ulang aplikasi:
 1.  Instal PyInstaller:
@@ -39,6 +33,6 @@ Proyek ini menggunakan `PyInstaller` untuk membuat file `.exe`. Jika Anda ingin 
     ```
 2.  Jalankan perintah build dari direktori proyek:
     ```bash
-    pyinstaller KeepActive.spec
+    pyinstaller --onefile --windowed --name KeepActive app_builder.py
     ```
     File `.exe` yang baru akan dibuat di dalam folder `dist`.
